@@ -1,23 +1,31 @@
+# DEFINE DEFAULT VARIABLES HERE
 
-variable "admin_username" {
-  description = "The admin username for the EC2 instance."
+variable "instance_type" {
+  description = "Instance Type"
   type        = string
-  default     = "azureuser"
 }
 
-variable "admin_password" {
-  description = "The admin password for the EC2 instance."
+variable "ami" {
+  description = "AMI ID"
   type        = string
-  default     = "Password123!"
-}
-variable "rg_name" {
-  description = "The name of the resource group."
-  type        = string
-  default     = "example-rg"
 }
 
-variable "location" {
-  description = "The Azure region where the resources will be created."
+variable "key_name" {
+  description = "Key Pair"
   type        = string
-  default     = "centralus"
+}
+
+variable "volume_size" {
+  description = "Volume size"
+  type        = string
+}
+
+variable "region_name" {
+  description = "AWS Region"
+  type        = string
+}
+
+variable "server_name" {
+  description = "EC2 Server Name"
+  type        = string
 }
