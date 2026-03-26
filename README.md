@@ -1,70 +1,294 @@
-# Getting Started with Create React App
+# DevOps Project 2 — Amazon Prime Clone (Fully Automated)
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+A fully automated CI/CD pipeline that builds, scans, and deploys an Amazon Prime Video clone application to AWS EKS using Jenkins, Docker, SonarQube, Trivy, ArgoCD, Helm, and Terraform — with Grafana + Prometheus monitoring.
 
-## Available Scripts
+---
 
-In the project directory, you can run:
+## Architecture Overview
 
-### `npm start`
+```
+GitHub → Jenkins → SonarQube → npm Build → Trivy Scan
+                                                 ↓
+                                          Docker Image Build
+                                                 ↓
+                                            AWS ECR
+                                                 ↓
+                                    ArgoCD (GitOps Deployment)
+                                                 ↓
+                                    AWS EKS (Kubernetes Cluster)
+                                                 ↓
+                                  Grafana + Prometheus Monitoring
+```
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
+---
 
-The page will reload when you make changes.\
-You may also see any lint errors in the console.
+## Tech Stack
 
-### `npm test`
+| Category | Tool |
+|---|---|
+| Source Control | GitHub |
+| CI Orchestration | Jenkins |
+| Code Quality | SonarQube |
+| Build Tool | npm |
+| Security Scan | Trivy (Aqua Security) |
+| Containerization | Docker |
+| Container Registry | AWS ECR |
+| Infrastructure | Terraform |
+| K8s Package Manager | Helm |
+| GitOps Deployment | ArgoCD |
+| Kubernetes | AWS EKS |
+| Monitoring | Grafana + Prometheus |
+| Notifications | Panda Cloud |
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+---
 
-### `npm run build`
+## Prerequisites
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+- AWS Account with IAM credentials
+- Terraform >= 1.0
+- AWS CLI configured
+- kubectl installed
+- Helm installed
+- Git
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+---
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+## Project Structure
 
-### `npm run eject`
+```
+├── tf/
+│   └── ec2_server/
+│       ├── main.tf           # EC2 instance with user_data
+│       ├── provider.tf       # AWS provider config
+│       ├── variables.tf      # Variable declarations
+│       ├── terraform.tfvars  # Variable values
+│       ├── sg.tf             # Security group rules
+│       ├── output.tf         # Output values
+│       ├── install.sh        # Bootstrap script (Jenkins, Docker, SonarQube, Trivy)
+│       └── key / key.pub     # SSH key pair
+├── k8s/
+│   ├── deployment.yaml       # Kubernetes deployment manifest
+│   └── service.yaml          # Kubernetes service manifest
+├── helm/
+│   └── charts/               # Helm chart for the application
+├── Jenkinsfile               # CI/CD pipeline definition
+└── Dockerfile                # Docker image build instructions
+```
 
-**Note: this is a one-way operation. Once you `eject`, you can't go back!**
+---
 
-If you aren't satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+## Infrastructure Setup (Terraform)
 
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you're on your own.
+### Step 1 — Generate SSH Key Pair
 
-You don't have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn't feel obligated to use this feature. However we understand that this tool wouldn't be useful if you couldn't customize it when you are ready for it.
+```bash
+cd tf/ec2_server
+ssh-keygen -t rsa -b 4096 -f ./key -N ""
+```
 
-## Learn More
+### Step 2 — Configure Variables
 
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
+Edit `terraform.tfvars`:
 
-To learn React, check out the [React documentation](https://reactjs.org/).
+```hcl
+instance_type = "t2.medium"
+ami           = "ami-0e86e20dae9224db8"
+key_name      = "key"
+volume_size   = 30
+region_name   = "us-east-1"
+server_name   = "JENKINS-SERVER"
+```
 
-### Code Splitting
+### Step 3 — Deploy Infrastructure
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/code-splitting](https://facebook.github.io/create-react-app/docs/code-splitting)
+```bash
+terraform init
+terraform plan
+terraform apply
+```
 
-### Analyzing the Bundle Size
+---
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size](https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size)
+## Jenkins Server — Installed via User Data
 
-### Making a Progressive Web App
+The `install.sh` script automatically installs:
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app](https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app)
+- AWS CLI
+- Docker + SonarQube (as Docker container on port 9000)
+- Trivy (vulnerability scanner)
+- Java 17 (OpenJDK)
+- Jenkins (on port 8080)
 
-### Advanced Configuration
+Access after deployment:
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/advanced-configuration](https://facebook.github.io/create-react-app/docs/advanced-configuration)
+```
+Jenkins   → http://<EC2-PUBLIC-IP>:8080
+SonarQube → http://<EC2-PUBLIC-IP>:9000  (admin/admin)
+```
 
-### Deployment
+---
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/deployment](https://facebook.github.io/create-react-app/docs/deployment)
+## Jenkins Pipeline Stages
 
-### `npm run build` fails to minify
+| Stage | Description |
+|---|---|
+| 1. Git Checkout | Clone source code from GitHub |
+| 2. SonarQube Analysis | Static code analysis |
+| 3. Quality Gate | Fail pipeline if quality threshold not met |
+| 4. npm Install | Install Node.js dependencies |
+| 5. Trivy Scan | Scan filesystem for vulnerabilities |
+| 6. Docker Build | Build Docker image |
+| 7. Create ECR Repo | Create AWS ECR repository if not exists |
+| 8. ECR Login & Tag | Authenticate and tag image |
+| 9. Push to ECR | Push image to AWS ECR |
+| 10. Cleanup | Remove local Docker images |
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
+---
+
+## Jenkins Configuration
+
+### Required Plugins
+
+- SonarQube Scanner
+- NodeJS
+- Docker Pipeline
+- AWS Credentials
+- Kubernetes CLI
+
+### Credentials to Add
+
+```
+Manage Jenkins → Credentials → Add:
+
+1. access-key   → AWS Access Key ID     (Secret text)
+2. secret-key   → AWS Secret Access Key (Secret text)
+3. sonar-token  → SonarQube Token       (Secret text)
+```
+
+### Tools to Configure
+
+```
+Manage Jenkins → Tools:
+
+1. JDK     → Name: JDK,     Version: Java 21
+2. NodeJS  → Name: NodeJS,  Version: 18.x
+3. SonarQube Scanner → Name: SonarQube Scanner
+```
+
+---
+
+## Security Group Ports
+
+| Port | Service |
+|---|---|
+| 22 | SSH |
+| 80 | HTTP |
+| 443 | HTTPS |
+| 8080 | Jenkins |
+| 9000 | SonarQube |
+| 9090 | Prometheus |
+| 9100 | Node Exporter |
+| 3000 | Grafana |
+| 6443 | Kube API Server |
+| 2379-2380 | etcd cluster |
+| 10250-10260 | Kubernetes |
+| 30000-32767 | NodePort services |
+
+---
+
+## Monitoring Setup
+
+### Prometheus + Grafana via Helm
+
+```bash
+# Add Helm repos
+helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+helm repo add grafana https://grafana.github.io/helm-charts
+helm repo update
+
+# Install Prometheus
+helm install prometheus prometheus-community/prometheus \
+  --namespace monitoring --create-namespace
+
+# Install Grafana
+helm install grafana grafana/grafana \
+  --namespace monitoring
+```
+
+### Import Grafana Dashboard
+
+- Dashboard ID: `1860` (Node Exporter Full)
+- Datasource: Prometheus
+
+---
+
+## Cleanup Pipeline
+
+To destroy all AWS resources and avoid charges:
+
+```groovy
+pipeline {
+  agent any
+  stages {
+    stage('Cleanup ECR Images') {
+      steps {
+        withCredentials([
+          string(credentialsId: 'access-key', variable: 'AWS_ACCESS_KEY'),
+          string(credentialsId: 'secret-key', variable: 'AWS_SECRET_KEY')
+        ]) {
+          sh """
+            aws configure set aws_access_key_id $AWS_ACCESS_KEY
+            aws configure set aws_secret_access_key $AWS_SECRET_KEY
+            aws ecr delete-repository --repository-name amazon-prime \
+              --region us-east-1 --force
+          """
+        }
+      }
+    }
+    stage('Destroy EKS Cluster') {
+      steps {
+        sh 'terraform destroy -auto-approve'
+      }
+    }
+    stage('Destroy EC2 / Jenkins Server') {
+      steps {
+        dir('tf/ec2_server') {
+          sh 'terraform destroy -auto-approve'
+        }
+      }
+    }
+  }
+}
+```
+
+Or run manually:
+
+```bash
+# Destroy EKS
+cd tf/eks
+terraform destroy -auto-approve
+
+# Destroy EC2
+cd tf/ec2_server
+terraform destroy -auto-approve
+```
+
+---
+
+## Common Errors & Fixes
+
+| Error | Fix |
+|---|---|
+| `agents any` syntax error | Change to `agent any` |
+| Jenkins GPG key not found | Use `gpg --dearmor` instead of `wget -O` |
+| SSH connection timeout | Use `user_data` instead of `remote-exec` provisioner |
+| `Bad substitution` in shell | Use double quotes for `${params.X}` |
+| `$SCANNER_HOME` not found | Use single quotes `sh '''...'''` for shell vars |
+| HTTP 403 CSRF error | Enable proxy compatibility in Jenkins security settings |
+
+---
+
+## Outputs
+
+
+
